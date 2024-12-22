@@ -203,3 +203,19 @@
     (ok true)
   )
 )
+
+(define-public (collect-marketplace-fee (rental-id uint))
+  (let
+    (
+      (rental (unwrap! (map-get? rentals rental-id) err-token-not-found))
+      (rental-price (get price rental))
+      (marketplace-fee (/ (* rental-price marketplace-fee-bps) u10000))
+    )
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    
+    ;; Transfer marketplace fee to contract owner
+    (try! (stx-transfer? marketplace-fee tx-sender contract-owner))
+    
+    (ok marketplace-fee)
+  )
+)
