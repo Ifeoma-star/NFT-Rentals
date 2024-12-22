@@ -141,3 +141,36 @@
     (ok true)
   )
 )
+
+(define-public (extend-rental (rental-id uint) (additional-blocks uint))
+  (let
+    (
+      (rental (unwrap! (map-get? rentals rental-id) err-token-not-found))
+      (current-renter (unwrap! (get renter rental) err-not-rented))
+    )
+    ;; Ensure only current renter can extend
+    (asserts! (is-eq tx-sender current-renter) err-cannot-extend)
+    
+    ;; Limit extension to prevent abuse
+    (asserts! (<= additional-blocks max-rental-extension-blocks) err-invalid-extension)
+    
+    ;; Calculate additional cost (could be prorated or at full rental rate)
+    (let
+      (
+        (extension-price (/ (* (get price rental) additional-blocks) (get rental-end rental)))
+      )
+      ;; Transfer additional funds to owner
+      (try! (stx-transfer? extension-price tx-sender (get owner rental)))
+      
+      ;; Update rental end time
+      (map-set rentals
+        rental-id
+        (merge rental {
+          rental-end: (+ (get rental-end rental) additional-blocks)
+        })
+      )
+      
+      (ok true)
+    )
+  )
+)
