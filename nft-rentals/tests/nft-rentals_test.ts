@@ -213,4 +213,37 @@ Clarinet.test({
     }
 });
 
+Clarinet.test({
+    name: "Ensure rental price updates and discounts work correctly",
+    async fn(chain: Chain, accounts: Map<string, Account>)
+    {
+        const deployer = accounts.get("deployer")!;
+
+        let block = chain.mineBlock([
+            // Create rental
+            Tx.contractCall(
+                "nft-rentals",
+                "create-rental",
+                [types.uint(1), types.uint(100), types.uint(5000)],
+                deployer.address
+            ),
+            // Update price
+            Tx.contractCall(
+                "nft-rentals",
+                "update-rental-price",
+                [types.uint(0), types.uint(4000)],
+                deployer.address
+            ),
+            // Offer discount
+            Tx.contractCall(
+                "nft-rentals",
+                "offer-rental-discount",
+                [types.uint(0), types.uint(1000)], // 10% discount
+                deployer.address
+            )
+        ]);
+        assertEquals(block.receipts[1].result, `(ok true)`);
+        assertEquals(block.receipts[2].result, `(ok true)`);
+    }
+});
 
