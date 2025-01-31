@@ -77,3 +77,46 @@ Clarinet.test({
         assertEquals(block.receipts[0].result, `(ok true)`);
     }
 });
+
+Clarinet.test({
+    name: "Ensure rental dispute and emergency return mechanism works",
+    async fn(chain: Chain, accounts: Map<string, Account>)
+    {
+        const deployer = accounts.get("deployer")!;
+        const renter = accounts.get("wallet_1")!;
+
+        let block = chain.mineBlock([
+            // Create and rent NFT
+            Tx.contractCall(
+                "nft-rentals",
+                "create-rental",
+                [types.uint(1), types.uint(100), types.uint(5000)],
+                deployer.address
+            ),
+            Tx.contractCall(
+                "nft-rentals",
+                "rent-nft",
+                [types.uint(0)],
+                renter.address
+            ),
+            // File dispute
+            Tx.contractCall(
+                "nft-rentals",
+                "file-rental-dispute",
+                [types.uint(0), types.utf8("Rental terms violated")],
+                renter.address
+            )
+        ]);
+
+        // Emergency return by contract owner
+        block = chain.mineBlock([
+            Tx.contractCall(
+                "nft-rentals",
+                "emergency-return-nft",
+                [types.uint(0)],
+                deployer.address
+            )
+        ]);
+        assertEquals(block.receipts[0].result, `(ok true)`);
+    }
+});
