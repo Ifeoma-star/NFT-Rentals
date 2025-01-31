@@ -359,3 +359,44 @@
     (ok true)
   )
 )
+
+
+(define-public (offer-rental-discount (rental-id uint) (discount-bps uint))
+  (let
+    (
+      (rental (unwrap! (map-get? rentals rental-id) err-token-not-found))
+      (current-price (get price rental))
+      (discounted-price (- current-price (/ (* current-price discount-bps) u10000)))
+    )
+    ;; Only owner can offer discount
+    (asserts! (is-eq tx-sender (get owner rental)) err-not-token-owner)
+    ;; Can't discount more than 50%
+    (asserts! (<= discount-bps u5000) err-invalid-discount)
+    
+    (map-set rentals
+      rental-id
+      (merge rental {
+        price: discounted-price
+      })
+    )
+    (ok true)
+  )
+)
+
+(define-public (set-dispute-resolved (rental-id uint))
+  (let
+    (
+      (dispute (unwrap! (map-get? rental-disputes rental-id) err-token-not-found))
+    )
+    ;; Only contract owner can resolve disputes
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    
+    (map-set rental-disputes
+      rental-id
+      (merge dispute {
+        status: "RESOLVED"
+      })
+    )
+    (ok true)
+  )
+)
