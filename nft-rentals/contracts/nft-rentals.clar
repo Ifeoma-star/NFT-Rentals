@@ -306,3 +306,56 @@
     (ok true)
   )
 )
+
+(define-public (update-rental-price (rental-id uint) (new-price uint))
+  (let
+    (
+      (rental (unwrap! (map-get? rentals rental-id) err-token-not-found))
+    )
+    ;; Only owner can update price
+    (asserts! (is-eq tx-sender (get owner rental)) err-not-token-owner)
+    ;; Can't update price while NFT is rented
+    (asserts! (is-none (get renter rental)) err-already-rented)
+    
+    (map-set rentals
+      rental-id
+      (merge rental {
+        price: new-price
+      })
+    )
+    (ok true)
+  )
+)
+
+(define-public (emergency-return-nft (rental-id uint))
+  (let
+    (
+      (rental (unwrap! (map-get? rentals rental-id) err-token-not-found))
+      (dispute (unwrap! (map-get? rental-disputes rental-id) err-token-not-found))
+    )
+    ;; Only contract owner can force return
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    ;; Must have an active dispute
+    (asserts! (is-eq (get status dispute) "PENDING") err-not-rented)
+    
+    ;; Transfer NFT back to owner
+    (try! (nft-transfer? rented-nft 
+                        rental-id 
+                        (unwrap! (get renter rental) err-not-rented) 
+                        (get owner rental)))
+    
+    ;; Update dispute status
+    (map-set rental-disputes
+      rental-id
+      (merge dispute {
+        status: "RESOLVED"
+      })
+    )
+    
+    ;; Clean up rental
+    (map-delete token-rental (get token-id rental))
+    (map-delete rentals rental-id)
+    
+    (ok true)
+  )
+)
