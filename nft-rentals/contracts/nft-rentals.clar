@@ -400,3 +400,23 @@
     (ok true)
   )
 )
+
+(define-public (update-rental-duration (rental-id uint) (new-duration uint))
+  (let
+    (
+      (rental (unwrap! (map-get? rentals rental-id) err-token-not-found))
+    )
+    ;; Only owner can update duration
+    (asserts! (is-eq tx-sender (get owner rental)) err-not-token-owner)
+    ;; Can't update duration while NFT is rented
+    (asserts! (is-none (get renter rental)) err-already-rented)
+    
+    (map-set rentals
+      rental-id
+      (merge rental {
+        rental-end: (+ block-height new-duration)
+      })
+    )
+    (ok true)
+  )
+)
