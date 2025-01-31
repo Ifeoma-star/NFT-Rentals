@@ -67,6 +67,48 @@
   (map-get? token-rental token-id)
 )
 
+
+(define-constant err-invalid-rating (err u109))
+(define-constant err-invalid-discount (err u110))
+
+;; Additional read-only functions
+(define-read-only (get-rental-dispute (rental-id uint))
+  (map-get? rental-disputes rental-id)
+)
+
+(define-read-only (get-rental-rating (rental-id uint))
+  (map-get? rental-ratings rental-id)
+)
+
+(define-read-only (get-rental-count)
+  (var-get next-rental-id)
+)
+
+(define-read-only (is-rental-active (rental-id uint))
+  (match (map-get? rentals rental-id)
+    rental (and 
+            (is-some (get renter rental))
+            (< block-height (get rental-end rental)))
+    false
+  )
+)
+
+(define-read-only (get-rental-owner (rental-id uint))
+  (match (map-get? rentals rental-id)
+    rental (ok (get owner rental))
+    (err err-token-not-found)
+  )
+)
+
+(define-read-only (get-rental-renter (rental-id uint))
+  (match (map-get? rentals rental-id)
+    rental (ok (get renter rental))
+    (err err-token-not-found)
+  )
+)
+
+
+
 ;; Public functions
 (define-public (create-rental (token-id uint) (duration uint) (price uint))
   (let
@@ -261,6 +303,120 @@
       )
     )
     
+    (ok true)
+  )
+)
+
+(define-public (update-rental-price (rental-id uint) (new-price uint))
+  (let
+    (
+      (rental (unwrap! (map-get? rentals rental-id) err-token-not-found))
+    )
+    ;; Only owner can update price
+    (asserts! (is-eq tx-sender (get owner rental)) err-not-token-owner)
+    ;; Can't update price while NFT is rented
+    (asserts! (is-none (get renter rental)) err-already-rented)
+    
+    (map-set rentals
+      rental-id
+      (merge rental {
+        price: new-price
+      })
+    )
+    (ok true)
+  )
+)
+
+(define-public (emergency-return-nft (rental-id uint))
+  (let
+    (
+      (rental (unwrap! (map-get? rentals rental-id) err-token-not-found))
+      (dispute (unwrap! (map-get? rental-disputes rental-id) err-token-not-found))
+    )
+    ;; Only contract owner can force return
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    ;; Must have an active dispute
+    (asserts! (is-eq (get status dispute) "PENDING") err-not-rented)
+    
+    ;; Transfer NFT back to owner
+    (try! (nft-transfer? rented-nft 
+                        rental-id 
+                        (unwrap! (get renter rental) err-not-rented) 
+                        (get owner rental)))
+    
+    ;; Update dispute status
+    (map-set rental-disputes
+      rental-id
+      (merge dispute {
+        status: "RESOLVED"
+      })
+    )
+    
+    ;; Clean up rental
+    (map-delete token-rental (get token-id rental))
+    (map-delete rentals rental-id)
+    
+    (ok true)
+  )
+)
+
+
+(define-public (offer-rental-discount (rental-id uint) (discount-bps uint))
+  (let
+    (
+      (rental (unwrap! (map-get? rentals rental-id) err-token-not-found))
+      (current-price (get price rental))
+      (discounted-price (- current-price (/ (* current-price discount-bps) u10000)))
+    )
+    ;; Only owner can offer discount
+    (asserts! (is-eq tx-sender (get owner rental)) err-not-token-owner)
+    ;; Can't discount more than 50%
+    (asserts! (<= discount-bps u5000) err-invalid-discount)
+    
+    (map-set rentals
+      rental-id
+      (merge rental {
+        price: discounted-price
+      })
+    )
+    (ok true)
+  )
+)
+
+(define-public (set-dispute-resolved (rental-id uint))
+  (let
+    (
+      (dispute (unwrap! (map-get? rental-disputes rental-id) err-token-not-found))
+    )
+    ;; Only contract owner can resolve disputes
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    
+    (map-set rental-disputes
+      rental-id
+      (merge dispute {
+        status: "RESOLVED"
+      })
+    )
+    (ok true)
+  )
+)
+
+(define-public (update-rental-duration (rental-id uint) (new-duration uint))
+  (let
+    (
+      (rental (unwrap! (map-get? rentals rental-id) err-token-not-found))
+    )
+    ;; Only owner can update duration
+    (asserts! (is-eq tx-sender (get owner rental)) err-not-token-owner)
+    ;; Can't update duration while NFT is rented
+    (asserts! (is-none (get renter rental)) err-already-rented)
+    
+    (map-set rentals
+      rental-id
+      (merge rental {
+        rental-end: (+ block-height new-duration)
+      })
+    )
     (ok true)
   )
 )
