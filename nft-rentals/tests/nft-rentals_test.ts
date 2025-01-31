@@ -120,3 +120,41 @@ Clarinet.test({
         assertEquals(block.receipts[0].result, `(ok true)`);
     }
 });
+
+
+Clarinet.test({
+    name: "Ensure rental extension works correctly",
+    async fn(chain: Chain, accounts: Map<string, Account>)
+    {
+        const deployer = accounts.get("deployer")!;
+        const renter = accounts.get("wallet_1")!;
+
+        let block = chain.mineBlock([
+            // Setup rental
+            Tx.contractCall(
+                "nft-rentals",
+                "create-rental",
+                [types.uint(1), types.uint(100), types.uint(5000)],
+                deployer.address
+            ),
+            Tx.contractCall(
+                "nft-rentals",
+                "rent-nft",
+                [types.uint(0)],
+                renter.address
+            )
+        ]);
+
+        // Extend rental
+        block = chain.mineBlock([
+            Tx.contractCall(
+                "nft-rentals",
+                "extend-rental",
+                [types.uint(0), types.uint(500)],
+                renter.address
+            )
+        ]);
+        assertEquals(block.receipts[0].result, `(ok true)`);
+    }
+});
+
