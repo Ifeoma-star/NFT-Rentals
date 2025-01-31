@@ -158,3 +158,59 @@ Clarinet.test({
     }
 });
 
+Clarinet.test({
+    name: "Ensure rental rating system works correctly",
+    async fn(chain: Chain, accounts: Map<string, Account>)
+    {
+        const deployer = accounts.get("deployer")!;
+        const renter = accounts.get("wallet_1")!;
+
+        let block = chain.mineBlock([
+            // Setup rental
+            Tx.contractCall(
+                "nft-rentals",
+                "create-rental",
+                [types.uint(1), types.uint(100), types.uint(5000)],
+                deployer.address
+            ),
+            Tx.contractCall(
+                "nft-rentals",
+                "rent-nft",
+                [types.uint(0)],
+                renter.address
+            )
+        ]);
+
+        // Rate rental
+        block = chain.mineBlock([
+            // Renter rates owner
+            Tx.contractCall(
+                "nft-rentals",
+                "rate-rental",
+                [
+                    types.uint(0),
+                    types.bool(true),
+                    types.uint(5),
+                    types.some(types.utf8("Great rental experience!"))
+                ],
+                renter.address
+            ),
+            // Owner rates renter
+            Tx.contractCall(
+                "nft-rentals",
+                "rate-rental",
+                [
+                    types.uint(0),
+                    types.bool(false),
+                    types.uint(5),
+                    types.some(types.utf8("Excellent renter!"))
+                ],
+                deployer.address
+            )
+        ]);
+        assertEquals(block.receipts[0].result, `(ok true)`);
+        assertEquals(block.receipts[1].result, `(ok true)`);
+    }
+});
+
+
