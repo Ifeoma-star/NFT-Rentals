@@ -67,6 +67,48 @@
   (map-get? token-rental token-id)
 )
 
+
+(define-constant err-invalid-rating (err u109))
+(define-constant err-invalid-discount (err u110))
+
+;; Additional read-only functions
+(define-read-only (get-rental-dispute (rental-id uint))
+  (map-get? rental-disputes rental-id)
+)
+
+(define-read-only (get-rental-rating (rental-id uint))
+  (map-get? rental-ratings rental-id)
+)
+
+(define-read-only (get-rental-count)
+  (var-get next-rental-id)
+)
+
+(define-read-only (is-rental-active (rental-id uint))
+  (match (map-get? rentals rental-id)
+    rental (and 
+            (is-some (get renter rental))
+            (< block-height (get rental-end rental)))
+    false
+  )
+)
+
+(define-read-only (get-rental-owner (rental-id uint))
+  (match (map-get? rentals rental-id)
+    rental (ok (get owner rental))
+    (err err-token-not-found)
+  )
+)
+
+(define-read-only (get-rental-renter (rental-id uint))
+  (match (map-get? rentals rental-id)
+    rental (ok (get renter rental))
+    (err err-token-not-found)
+  )
+)
+
+
+
 ;; Public functions
 (define-public (create-rental (token-id uint) (duration uint) (price uint))
   (let
