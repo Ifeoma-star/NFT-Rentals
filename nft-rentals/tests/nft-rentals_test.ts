@@ -247,3 +247,35 @@ Clarinet.test({
     }
 });
 
+Clarinet.test({
+    name: "Ensure marketplace fee collection works",
+    async fn(chain: Chain, accounts: Map<string, Account>)
+    {
+        const deployer = accounts.get("deployer")!;
+        const renter = accounts.get("wallet_1")!;
+
+        let block = chain.mineBlock([
+            // Setup rental and rent
+            Tx.contractCall(
+                "nft-rentals",
+                "create-rental",
+                [types.uint(1), types.uint(100), types.uint(5000)],
+                deployer.address
+            ),
+            Tx.contractCall(
+                "nft-rentals",
+                "rent-nft",
+                [types.uint(0)],
+                renter.address
+            ),
+            // Collect fee
+            Tx.contractCall(
+                "nft-rentals",
+                "collect-marketplace-fee",
+                [types.uint(0)],
+                deployer.address
+            )
+        ]);
+        assertEquals(block.receipts[2].result.includes('ok u'), true);
+    }
+});
